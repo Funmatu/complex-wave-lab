@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>複素関数論・統合学習ラボ (Complex Analysis Integrated Lab)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- MathJax -->
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #050505; font-family: 'Segoe UI', sans-serif; color: white; }
+        #canvas-container { width: 100vw; height: 100vh; display: block; }
+        
+        /* UI Panel */
+        #ui-panel {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 340px;
+            height: 100vh;
+            background: rgba(20, 20, 30, 0.9);
+            backdrop-filter: blur(10px);
+            border-left: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            flex-direction: column;
+            box-shadow: -5px 0 15px rgba(0,0,0,0.5);
+            transition: transform 0.3s;
+            z-index: 10;
+        }
+
+        /* Tabs */
+        .tabs { display: flex; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .tab-btn {
+            flex: 1;
+            padding: 15px 0;
+            background: transparent;
+            border: none;
+            color: #888;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+            font-size: 0.9rem;
+        }
+        .tab-btn:hover { color: #fff; background: rgba(255,255,255,0.05); }
+        .tab-btn.active {
+            color: #4fc3f7;
+            border-bottom: 2px solid #4fc3f7;
+            background: rgba(79, 195, 247, 0.1);
+        }
+
+        /* Content Area */
+        .content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        /* Sections */
+        .section { display: none; animation: fadeIn 0.5s; }
+        .section.active { display: block; }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        h1 { font-size: 1.1rem; margin: 0 0 10px 0; color: #fff; }
+        h2 { font-size: 0.95rem; margin: 15px 0 10px 0; color: #4fc3f7; border-left: 3px solid #4fc3f7; padding-left: 8px; }
+        p { font-size: 0.85rem; color: #ccc; margin-bottom: 10px; line-height: 1.5; }
+        .formula-box {
+            background: rgba(0,0,0,0.4);
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.05);
+            min-height: 40px; /* Prevent layout shift */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Controls */
+        .control-group { margin-bottom: 15px; }
+        label { display: block; font-size: 0.8rem; margin-bottom: 5px; color: #aaa; }
+        input[type="range"] { width: 100%; cursor: pointer; accent-color: #4fc3f7; }
+        select {
+            width: 100%; padding: 8px; background: #222; border: 1px solid #444; color: white; border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        .toggle-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .value-display { float: right; color: #fff; font-weight: bold; }
+        
+        button.action-btn {
+            width: 100%;
+            padding: 10px;
+            background: #4fc3f7;
+            color: #000;
+            border: none;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-bottom: 15px;
+        }
+        button.action-btn:hover { background: #81d4fa; }
+        button.action-btn.active { background: #ff9800; color: #fff; }
+
+        /* Legend & Info */
+        .info-panel {
+            background: rgba(79, 195, 247, 0.1);
+            padding: 10px;
+            border-radius: 6px;
+            margin-top: 15px;
+            font-size: 0.8rem;
+            color: #def;
+        }
+        .legend-item { display: flex; align-items: center; margin-bottom: 5px; font-size: 0.8rem; }
+        .color-box { width: 10px; height: 10px; margin-right: 8px; border-radius: 2px; display: inline-block; }
+
+        /* 3D Labels */
+        .label-text {
+            position: absolute;
+            color: white;
+            font-weight: bold;
+            pointer-events: none;
+            text-shadow: 2px 2px 2px black;
+            font-size: 14px;
+            user-select: none;
+            white-space: nowrap;
+        }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #111; }
+        ::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+    </style>
+</head>
+<body>
+
+    <div id="ui-panel">
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('tab-wave')">① 物理シミュ<br><span style="font-size:0.7em">Wave Packet</span></button>
+            <button class="tab-btn" onclick="switchTab('tab-func')">② 数学ギャラリー<br><span style="font-size:0.7em">Complex Functions</span></button>
+        </div>
+
+        <div class="content">
+            <!-- TAB 1: WAVE PACKET SIMULATION -->
+            <div id="tab-wave" class="section active">
+                <h1>位相速度 vs 群速度</h1>
+                <div class="formula-box">
+                    $$ \psi(x,t) = \text{Env}(x,t) \cdot e^{i k (x - v_p t)} $$
+                </div>
+                <p>波の「中身（搬送波）」と「外枠（包絡線）」が異なる速度で進む様子を観察します。</p>
+
+                <button id="btn-play" class="action-btn">再生 / 停止 (Play/Pause)</button>
+
+                <h2>パラメータ操作</h2>
+                <div class="control-group">
+                    <label>波数 $k$ (搬送波の細かさ) <span id="val-k" class="value-display">3.0</span></label>
+                    <input type="range" id="slider-k" min="1" max="10" step="0.5" value="3.0">
+                </div>
+                <div class="control-group">
+                    <label style="color:#00ff66">位相速度 $v_p$ (Phase Vel) <span id="val-vp" class="value-display">2.0</span></label>
+                    <input type="range" id="slider-vp" min="-5" max="5" step="0.1" value="2.0">
+                    <p style="font-size:0.75em; margin:0; color:#888;">中身の波が進む速度</p>
+                </div>
+                <div class="control-group">
+                    <label style="color:#ff0066">群速度 $v_g$ (Group Vel) <span id="val-vg" class="value-display">1.0</span></label>
+                    <input type="range" id="slider-vg" min="-5" max="5" step="0.1" value="1.0">
+                    <p style="font-size:0.75em; margin:0; color:#888;">波の塊が進む速度</p>
+                </div>
+                <div class="control-group">
+                    <label>包絡線の幅 $\sigma$ <span id="val-sigma" class="value-display">1.0</span></label>
+                    <input type="range" id="slider-sigma" min="0.5" max="3.0" step="0.1" value="1.0">
+                </div>
+
+                <div class="info-panel">
+                    <div class="legend-item"><div class="color-box" style="background:#00ffff;"></div>複素関数 (3D)</div>
+                    <div class="legend-item"><div class="color-box" style="background:#fff; border:1px dashed #555;"></div>包絡線 (Envelope)</div>
+                    <div class="legend-item"><div class="color-box" style="background:#ff0000;"></div>群速度マーカー ($v_g$)</div>
+                    <div class="legend-item"><div class="color-box" style="background:#00ff00;"></div>位相速度マーカー ($v_p$)</div>
+                    <hr style="border:0; border-top:1px solid #555; margin:5px 0;">
+                    <div style="font-size:0.9em">
+                        <strong>ヒント:</strong><br>
+                        $v_p = 2v_g$ (例: 2.0 vs 1.0) にすると、波が後ろから現れて前へ消えていく様子が見えます（量子力学的な物質波の典型的な挙動）。
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: FUNCTION GALLERY (Unchanged) -->
+            <div id="tab-func" class="section">
+                <h1>複素関数の地形図</h1>
+                <p>関数 $f(z)$ の構造を3Dで可視化します。<br>
+                <strong>高さ = 絶対値 $|f(z)|$</strong><br>
+                <strong>色 = 偏角 $\arg f(z)$</strong></p>
+
+                <div class="control-group">
+                    <label>関数の選択 (Select Function)</label>
+                    <select id="func-selector">
+                        <option value="z2">f(z) = z² (Quadratic)</option>
+                        <option value="z3">f(z) = z³ - 1 (Roots of Unity)</option>
+                        <option value="inv">f(z) = 1/z (Pole / Singularity)</option>
+                        <option value="exp">f(z) = exp(z) (Exponential)</option>
+                        <option value="sin">f(z) = sin(z) (Sine)</option>
+                        <option value="sqrt">f(z) = √z (Branch Cut)</option>
+                        <option value="log">f(z) = log(z) (Logarithm)</option>
+                    </select>
+                </div>
+                <div id="func-formula" class="formula-box">
+                    $$ f(z) = z^2 $$
+                </div>
+
+                <div class="info-panel">
+                    <div class="legend-item"><span class="color-box" style="background:red"></span>0° (正の実軸)</div>
+                    <div class="legend-item"><span class="color-box" style="background:yellow"></span>90° (正の虚軸)</div>
+                    <div class="legend-item"><span class="color-box" style="background:cyan"></span>180° (負の実軸)</div>
+                    <div class="legend-item"><span class="color-box" style="background:blue"></span>270° (負の虚軸)</div>
+                    <hr style="border:0; border-top:1px solid #555; margin:5px 0;">
+                    <div id="func-desc">
+                        原点で0になり、周囲で放物線状に広がります。色が2周しているのは、原点の周りを1周する間に偏角が2回回る（$z^2$）ためです。
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <!-- 3D Labels -->
+    <div id="label-x" class="label-text">Position (x)</div>
+    <div id="label-y" class="label-text">Real</div>
+    <div id="label-z" class="label-text">Imaginary</div>
+
+    <script>
+        // --- 1. System State & Setup ---
+        const state = {
+            mode: 'wave', // 'wave' or 'func'
+            
+            // Wave Sim Params
+            isPlaying: false,
+            t: 0.0,          // Animation time
+            k: 3.0,          // Wave number
+            vp: 2.0,         // Phase velocity
+            vg: 1.0,         // Group velocity
+            sigma: 1.0,      // Width
+            
+            // Func Params
+            currentFunc: 'z2'
+        };
+
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x050505);
+        scene.fog = new THREE.FogExp2(0x050505, 0.02);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 6, 12); // Slightly different view for position based graph
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        // Group to hold mode-specific objects
+        const activeGroup = new THREE.Group();
+        scene.add(activeGroup);
+
+        // --- 2. Module 1: Physics Simulation (Phase vs Group Velocity) ---
+        
+        const X_RANGE = 10; 
+        const X_STEPS = 800;
+        const PLANE_OFFSET = 3.0;
+
+        // Geometries
+        const waveGeom = {
+            main: new THREE.BufferGeometry(),
+            real: new THREE.BufferGeometry(),
+            imag: new THREE.BufferGeometry(),
+            envTop: new THREE.BufferGeometry(), // Envelope lines
+            envBot: new THREE.BufferGeometry()
+        };
+        
+        // Init buffers
+        const positions = new Float32Array((X_STEPS + 1) * 3);
+        for (let key in waveGeom) {
+            waveGeom[key].setAttribute('position', new THREE.BufferAttribute(positions.slice(), 3));
+        }
+
+        const waveMaterials = {
+            main: new THREE.LineBasicMaterial({ color: 0x00ffff, linewidth: 2 }),
+            real: new THREE.LineBasicMaterial({ color: 0x00ff66, transparent: true, opacity: 0.4 }),
+            imag: new THREE.LineBasicMaterial({ color: 0xff0066, transparent: true, opacity: 0.4 }),
+            envelope: new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3, dashSize: 0.1, gapSize: 0.1 }) // Dashed lines need LineDashedMaterial but simpler here
+        };
+
+        const waveObjects = {}; 
+        
+        // Markers to track Phase and Group
+        const markers = {
+            group: new THREE.Mesh(new THREE.SphereGeometry(0.2), new THREE.MeshBasicMaterial({ color: 0xff0000 })), // Red for Group
+            phase: new THREE.Mesh(new THREE.SphereGeometry(0.15), new THREE.MeshBasicMaterial({ color: 0x00ff00 }))  // Green for Phase
+        };
+        
+        // Helper Grid
+        const gridX = new THREE.GridHelper(20, 20, 0x333333, 0x111111); // Main floor
+        gridX.position.y = -PLANE_OFFSET;
+        
+        const axesHelper = new THREE.AxesHelper(2);
+
+        function initWaveScene() {
+            activeGroup.clear();
+            
+            // Add Lines
+            waveObjects.main = new THREE.Line(waveGeom.main, waveMaterials.main);
+            waveObjects.real = new THREE.Line(waveGeom.real, waveMaterials.real);
+            waveObjects.imag = new THREE.Line(waveGeom.imag, waveMaterials.imag);
+            waveObjects.envTop = new THREE.Line(waveGeom.envTop, waveMaterials.envelope);
+            waveObjects.envBot = new THREE.Line(waveGeom.envBot, waveMaterials.envelope);
+
+            activeGroup.add(waveObjects.main);
+            activeGroup.add(waveObjects.real);
+            activeGroup.add(waveObjects.imag);
+            activeGroup.add(waveObjects.envTop);
+            activeGroup.add(waveObjects.envBot);
+
+            // Add Markers
+            activeGroup.add(markers.group);
+            activeGroup.add(markers.phase);
+
+            // Add Grids
+            activeGroup.add(gridX);
+            activeGroup.add(axesHelper);
+
+            // Labels
+            updateLabelText("Position (x)", "Real", "Imaginary");
+            
+            // Adjust Camera
+            camera.position.set(0, 5, 12);
+            controls.target.set(0, 0, 0);
+            
+            // Reset Time
+            state.t = 0;
+            updateWaveData(); 
+        }
+
+        // Wave Function: psi(x, t)
+        function calculatePsi(x, t) {
+            // Envelope moves with Group Velocity (vg)
+            // Gaussian: exp( - (x - vg*t)^2 / (2*sigma^2) )
+            const center = state.vg * t;
+            const dist = x - center;
+            const env = Math.exp( - (dist * dist) / (2 * state.sigma * state.sigma) );
+
+            // Carrier Phase moves with Phase Velocity (vp)
+            // Phase = k * (x - vp*t)
+            const phase = state.k * (x - state.vp * t);
+            
+            // Euler: env * (cos + i sin)
+            const real = env * Math.cos(phase);
+            const imag = env * Math.sin(phase);
+
+            return { real, imag, env, center };
+        }
+
+        function updateWaveData() {
+            // Arrays
+            const posMain = waveGeom.main.attributes.position.array;
+            const posReal = waveGeom.real.attributes.position.array;
+            const posImag = waveGeom.imag.attributes.position.array;
+            const posEnvT = waveGeom.envTop.attributes.position.array;
+            const posEnvB = waveGeom.envBot.attributes.position.array;
+
+            let idx = 0;
+            // Loop through Position x
+            for (let i = 0; i <= X_STEPS; i++) {
+                const x = -X_RANGE + (i / X_STEPS) * (X_RANGE * 2);
+                
+                const val = calculatePsi(x, state.t);
+
+                // Mapping: X=Position(x), Y=Real, Z=Imag
+                
+                // 1. Main Spiral
+                posMain[idx] = x; 
+                posMain[idx+1] = val.real; 
+                posMain[idx+2] = val.imag;
+
+                // 2. Real Projection (Shadow on floor Y = -PLANE_OFFSET) -> Actually lets put Real on Y axis plane
+                // Let's stick to the previous visual language:
+                // X axis = variable (Time previously, Position now)
+                // Y axis = Real
+                // Z axis = Imaginary
+                
+                // Shadow Real: (x, Real, fixed_Z)
+                posReal[idx] = x; 
+                posReal[idx+1] = val.real; 
+                posReal[idx+2] = PLANE_OFFSET;
+
+                // Shadow Imag: (x, fixed_Y, Imag)
+                posImag[idx] = x; 
+                posImag[idx+1] = -PLANE_OFFSET; 
+                posImag[idx+2] = val.imag;
+
+                // 3. Envelope Lines (Visual Guide)
+                // Draw on the main plane or surrounding the spiral?
+                // Let's draw them on the Real plane (vertical) at Z=0 for clarity
+                posEnvT[idx] = x;
+                posEnvT[idx+1] = val.env;
+                posEnvT[idx+2] = 0;
+
+                posEnvB[idx] = x;
+                posEnvB[idx+1] = -val.env;
+                posEnvB[idx+2] = 0;
+
+                idx += 3;
+            }
+
+            // Update Geometry
+            [waveGeom.main, waveGeom.real, waveGeom.imag, waveGeom.envTop, waveGeom.envBot].forEach(g => {
+                g.attributes.position.needsUpdate = true;
+            });
+
+            // --- Update Markers ---
+            
+            // 1. Group Marker (Red): Follows the center of the envelope
+            // Center position x = vg * t
+            const groupX = state.vg * state.t;
+            // Loop back if out of bounds for visual continuity?
+            // For physics simulation, let it fly. Reset t manually or looped.
+            
+            // Calculate height at center (max envelope = 1.0)
+            // But carrier might not be 1.0 at center.
+            const valCenter = calculatePsi(groupX, state.t);
+            markers.group.position.set(groupX, valCenter.env + 0.2, 0); // Hover above
+
+            // 2. Phase Marker (Green): Follows a specific phase peak
+            // We want to track the phase point that started at x=0 at t=0
+            // Phase phi = k(x - vp*t). Constant phase 0 => x = vp*t.
+            const phaseX = state.vp * state.t;
+            const valPhase = calculatePsi(phaseX, state.t);
+            
+            // If phase velocity differs from group velocity, this marker will slide through the envelope
+            markers.phase.position.set(phaseX, valPhase.real, valPhase.imag);
+
+            // Loop logic for continuous viewing
+            if(state.isPlaying) {
+                // Keep time within reasonable bounds to prevent markers flying away
+                // Reset if Group marker goes too far
+                if(groupX > X_RANGE + 2 || groupX < -X_RANGE - 2) {
+                    state.t = -state.t; 
+                }
+            }
+        }
+
+
+        // --- 3. Module 2: Function Gallery Implementation (Kept as is) ---
+
+        let funcMesh = null;
+        const funcSize = 4;
+        const funcSegments = 60; 
+
+        function hsvToRgb(h, s, v) {
+            let r, g, b;
+            let i = Math.floor(h * 6);
+            let f = h * 6 - i;
+            let p = v * (1 - s);
+            let q = v * (1 - f * s);
+            let t = v * (1 - (1 - f) * s);
+            switch (i % 6) {
+                case 0: r = v; g = t; b = p; break;
+                case 1: r = q; g = v; b = p; break;
+                case 2: r = p; g = v; b = t; break;
+                case 3: r = p; g = q; b = v; break;
+                case 4: r = t; g = p; b = v; break;
+                case 5: r = v; g = p; b = q; break;
+            }
+            return [r, g, b];
+        }
+
+        const funcs = {
+            z2: (x, y) => { return { re: x*x - y*y, im: 2*x*y }; },
+            z3: (x, y) => { const re = x*x*x - 3*x*y*y - 1; const im = 3*x*x*y - y*y*y; return { re, im }; },
+            inv: (x, y) => { const d = x*x + y*y; if(d < 0.001) return { re: 0, im: 0, div: true }; return { re: x/d, im: -y/d }; },
+            exp: (x, y) => { const ex = Math.exp(x); return { re: ex * Math.cos(y), im: ex * Math.sin(y) }; },
+            sin: (x, y) => { return { re: Math.sin(x) * Math.cosh(y), im: Math.cos(x) * Math.sinh(y) }; },
+            sqrt: (x, y) => { 
+                const r = Math.sqrt(x*x + y*y); const theta = Math.atan2(y, x); 
+                const sqrtR = Math.sqrt(r); const halfTheta = theta / 2;
+                return { re: sqrtR * Math.cos(halfTheta), im: sqrtR * Math.sin(halfTheta) }; 
+            },
+            log: (x, y) => { const r = Math.sqrt(x*x + y*y); if(r < 0.001) return { re: -10, im: 0, div:true }; return { re: Math.log(r), im: Math.atan2(y, x) }; }
+        };
+
+        function generateSurface(funcKey) {
+            const geometry = new THREE.BufferGeometry();
+            const vertices = [];
+            const colors = [];
+            const indices = [];
+            const f = funcs[funcKey];
+            const half = funcSize / 2;
+            const step = funcSize / funcSegments;
+
+            for (let i = 0; i <= funcSegments; i++) {
+                const y = -half + i * step;
+                for (let j = 0; j <= funcSegments; j++) {
+                    const x = -half + j * step;
+                    const res = f(x, y);
+                    let mod = Math.sqrt(res.re*res.re + res.im*res.im);
+                    if (mod > 5 || res.div) mod = 5; 
+                    let phase = Math.atan2(res.im, res.re);
+                    if (phase < 0) phase += Math.PI * 2;
+                    const hue = phase / (Math.PI * 2);
+                    const rgb = hsvToRgb(hue, 1.0, 1.0);
+                    vertices.push(x, mod, y);
+                    colors.push(rgb[0], rgb[1], rgb[2]);
+                }
+            }
+
+            for (let i = 0; i < funcSegments; i++) {
+                for (let j = 0; j < funcSegments; j++) {
+                    const a = i * (funcSegments + 1) + j;
+                    const b = i * (funcSegments + 1) + j + 1;
+                    const c = (i + 1) * (funcSegments + 1) + j;
+                    const d = (i + 1) * (funcSegments + 1) + j + 1;
+                    const yA = vertices[a*3+1];
+                    const yB = vertices[b*3+1];
+                    const yC = vertices[c*3+1];
+                    const limit = 2.0;
+                    if (Math.abs(yA - yB) < limit && Math.abs(yA - yC) < limit) {
+                        indices.push(a, b, d);
+                        indices.push(a, d, c);
+                    }
+                }
+            }
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+            geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+            geometry.setIndex(indices);
+            geometry.computeVertexNormals();
+            return geometry;
+        }
+
+        function initFuncScene() {
+            activeGroup.clear();
+            const geometry = generateSurface(state.currentFunc);
+            const material = new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.4, metalness: 0.1 });
+            funcMesh = new THREE.Mesh(geometry, material);
+            activeGroup.add(funcMesh);
+            const grid = new THREE.GridHelper(funcSize, 10, 0x888888, 0x222222);
+            activeGroup.add(grid);
+            const amb = new THREE.AmbientLight(0x404040);
+            const dir = new THREE.DirectionalLight(0xffffff, 1);
+            dir.position.set(5, 10, 5);
+            activeGroup.add(amb);
+            activeGroup.add(dir);
+            updateLabelText("Re(z)", "|f(z)|", "Im(z)");
+            camera.position.set(5, 5, 5);
+            controls.target.set(0, 0, 0);
+        }
+
+        // --- 4. Shared Utilities ---
+
+        function updateLabelText(x, y, z) {
+            document.getElementById('label-x').innerText = x;
+            document.getElementById('label-y').innerText = y;
+            document.getElementById('label-z').innerText = z;
+        }
+
+        function updateLabelsPosition() {
+            const xLabel = document.getElementById('label-x');
+            const yLabel = document.getElementById('label-y');
+            const zLabel = document.getElementById('label-z');
+
+            const len = 3;
+            const pts = [
+                new THREE.Vector3(len, 0, 0), // X
+                new THREE.Vector3(0, len, 0), // Y
+                new THREE.Vector3(0, 0, len)  // Z
+            ];
+
+            const elems = [xLabel, yLabel, zLabel];
+
+            pts.forEach((pos, i) => {
+                const vec = pos.clone();
+                vec.project(camera);
+                
+                const x = (vec.x * .5 + .5) * renderer.domElement.width;
+                const y = (-(vec.y * .5) + .5) * renderer.domElement.height;
+
+                if(vec.z > 1) {
+                    elems[i].style.display = 'none';
+                } else {
+                    elems[i].style.display = 'block';
+                    elems[i].style.left = x + 'px';
+                    elems[i].style.top = y + 'px';
+                }
+            });
+        }
+
+        // --- 5. Application Logic ---
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            updateLabelsPosition();
+            
+            if (state.mode === 'wave') {
+                if(state.isPlaying) {
+                    state.t += 0.02;
+                    updateWaveData();
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        // UI Interactions
+        window.switchTab = (tabId) => {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            
+            if(tabId === 'tab-wave') {
+                document.querySelector('button[onclick="switchTab(\'tab-wave\')"]').classList.add('active');
+                state.mode = 'wave';
+                initWaveScene();
+            } else {
+                document.querySelector('button[onclick="switchTab(\'tab-func\')"]').classList.add('active');
+                state.mode = 'func';
+                initFuncScene();
+            }
+            document.getElementById(tabId).classList.add('active');
+        };
+
+        // Event Listeners for Controls
+        
+        // Play Button
+        document.getElementById('btn-play').addEventListener('click', (e) => {
+            state.isPlaying = !state.isPlaying;
+            e.target.innerText = state.isPlaying ? "一時停止 (Pause)" : "再生 (Play)";
+            e.target.classList.toggle('active');
+        });
+
+        // Wave Controls
+        document.getElementById('slider-k').addEventListener('input', (e) => {
+            state.k = parseFloat(e.target.value);
+            document.getElementById('val-k').innerText = state.k.toFixed(1);
+            if(!state.isPlaying) updateWaveData();
+        });
+        document.getElementById('slider-vp').addEventListener('input', (e) => {
+            state.vp = parseFloat(e.target.value);
+            document.getElementById('val-vp').innerText = state.vp.toFixed(1);
+            if(!state.isPlaying) updateWaveData();
+        });
+        document.getElementById('slider-vg').addEventListener('input', (e) => {
+            state.vg = parseFloat(e.target.value);
+            document.getElementById('val-vg').innerText = state.vg.toFixed(1);
+            if(!state.isPlaying) updateWaveData();
+        });
+        document.getElementById('slider-sigma').addEventListener('input', (e) => {
+            state.sigma = parseFloat(e.target.value);
+            document.getElementById('val-sigma').innerText = state.sigma.toFixed(1);
+            if(!state.isPlaying) updateWaveData();
+        });
+
+        // Func Controls (Unchanged logic)
+        const descriptions = {
+            'z2': '原点で0、周囲で放物線状に増大。偏角は2回転。 (正則関数)',
+            'z3': '1の3乗根が等間隔に配置されています。',
+            'inv': '原点に「極（Pole）」があり、無限大に発散します。',
+            'exp': '実軸方向には指数関数的増大、虚軸方向には回転。周期性を持ちます。',
+            'sin': 'サドル（鞍部）のような形状が無限に続きます。',
+            'sqrt': '原点から「分岐切断（Branch Cut）」が伸び、段差が見えます（リーマン面の一部）。',
+            'log': '対数螺旋。負の実軸に沿って分岐切断が見られます。'
+        };
+        const formulas = {
+            'z2': '$$ f(z) = z^2 $$',
+            'z3': '$$ f(z) = z^3 - 1 $$',
+            'inv': '$$ f(z) = 1/z $$',
+            'exp': '$$ f(z) = e^z $$',
+            'sin': '$$ f(z) = \\sin z $$',
+            'sqrt': '$$ f(z) = \\sqrt{z} $$',
+            'log': '$$ f(z) = \\log z $$'
+        };
+
+        document.getElementById('func-selector').addEventListener('change', (e) => {
+            state.currentFunc = e.target.value;
+            document.getElementById('func-desc').innerText = descriptions[state.currentFunc];
+            const fBox = document.getElementById('func-formula');
+            fBox.innerHTML = formulas[state.currentFunc];
+            MathJax.typesetPromise([fBox]);
+            initFuncScene();
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Initialize
+        initWaveScene();
+        animate();
+
+    </script>
+</body>
+</html>
